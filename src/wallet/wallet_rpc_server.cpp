@@ -34,6 +34,7 @@
 #include <boost/algorithm/string.hpp>
 #include <boost/preprocessor/stringize.hpp>
 #include <cstdint>
+#include <thread>
 #include "include_base_utils.h"
 using namespace epee;
 
@@ -69,6 +70,7 @@ namespace
   const command_line::arg_descriptor<bool> arg_prompt_for_password = {"prompt-for-password", "Prompts for password when not provided", false};
   const command_line::arg_descriptor<std::string> arg_data_dir = {"data-dir", "Blockchain database path."};
   const command_line::arg_descriptor<bool> arg_testnet = {"testnet", "For testnet. Daemon must also be launched with --testnet flag"};
+  const command_line::arg_descriptor<uint64_t> arg_periodic_save = {"periodic-wallet-save", "Save wallet periodically (arg in minutes)", 0};
 
   constexpr const char default_rpc_username[] = "electroneum";
 
@@ -144,6 +146,24 @@ namespace tools
       return true;
     }, 500);
 
+    if(m_store_interval > 0) {
+      m_net_server.add_idle_handler([this](){
+          if (!m_wallet) return true;
+
+          try
+          {
+            boost::thread([&]{m_wallet->store();});
+          }
+          catch (const std::exception& e)
+          {
+            LOG_ERROR("Exception at while storing wallet, what=" << e.what());
+            return false;
+          }
+
+          return true;
+      }, m_store_interval * 60 * 1000);
+    }
+
     //DO NOT START THIS SERVER IN MORE THEN 1 THREADS WITHOUT REFACTORING
     return epee::http_server_impl_base<wallet_rpc_server, connection_context>::run(1, true);
   }
@@ -173,6 +193,7 @@ namespace tools
     std::string bind_port = command_line::get_arg(*m_vm, arg_rpc_bind_port);
     const bool disable_auth = command_line::get_arg(*m_vm, arg_disable_rpc_login);
     m_restricted = command_line::get_arg(*m_vm, arg_restricted);
+    m_store_interval = command_line::get_arg(*m_vm, arg_periodic_save);
     if (!command_line::is_arg_defaulted(*m_vm, arg_wallet_dir))
     {
       if (!command_line::is_arg_defaulted(*m_vm, wallet_args::arg_wallet_file()))
@@ -4400,6 +4421,7 @@ int main(int argc, char** argv) {
   command_line::add_arg(desc_params, arg_rpc_bind_port);
   command_line::add_arg(desc_params, arg_disable_rpc_login);
   command_line::add_arg(desc_params, arg_restricted);
+  command_line::add_arg(desc_params, arg_periodic_save);
   cryptonote::rpc_args::init_options(desc_params);
   command_line::add_arg(desc_params, arg_wallet_file);
   command_line::add_arg(desc_params, arg_from_json);

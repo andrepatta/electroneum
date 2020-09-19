@@ -266,6 +266,7 @@ namespace tools
       const boost::program_options::variables_map *m_vm;
       uint32_t m_auto_refresh_period;
       boost::posix_time::ptime m_last_auto_refresh_time;
+      uint64_t m_store_interval = 0;
 
       bool m_testnet;
   };
