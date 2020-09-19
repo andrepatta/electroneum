@@ -1693,7 +1693,13 @@ namespace tools
 
     try
     {
-      m_wallet->store();
+      if(req.on_thread) {
+        boost::thread([&]{m_wallet->store();});
+        res.on_thread = true;
+      } else {
+        m_wallet->store();
+      }
+
     }
     catch (const std::exception& e)
     {
